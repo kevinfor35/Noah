@@ -70,7 +70,7 @@ web/
 │   │   └── main.py    # Application entry
 │   ├── scripts/       # Database initialization
 │   ├── pyproject.toml
-│   └── .env           # Environment variables
+│   └── .env.example   # Environment variables template
 └── frontend/          # Vue frontend
     ├── src/
     │   ├── views/     # Page components
@@ -101,6 +101,8 @@ GRANT ALL PRIVILEGES ON DATABASE blog_db TO blog_user;
 
 ```bash
 cd backend
+
+cp .env.example .env
 
 uv sync
 
