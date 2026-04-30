@@ -1,10 +1,9 @@
 [project]
-<<<<<<< HEAD
 name = "backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "FastAPI backend for blog system"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10"
 dependencies = [
     "asyncpg>=0.31.0",
     "bcrypt==4.1.2",
@@ -18,26 +17,9 @@ dependencies = [
     "sqlalchemy>=2.0.49",
     "uvicorn>=0.46.0",
 ]
-=======
-name = "blog-backend"
-version = "0.1.0"
-description = "FastAPI backend for blog system"
-requires-python = ">=3.10"
-
-[project.dependencies]
-fastapi = "^0.109.0"
-uvicorn = "^0.27.0"
-sqlalchemy = "^2.0.23"
-asyncpg = "^0.29.0"
-python-jose = "^3.3.0"
-passlib = "^1.7.4"
-bcrypt = "^4.0.1"
-pydantic = "^2.5.2"
-python-dotenv = "^1.0.0"
 
 [tool.uv]
 extras = ["standard"]
 
-[scripts]
+[project.scripts]
 start = "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
->>>>>>> 909e3c978e36fb81529966b9e1c684c1c8da5176
