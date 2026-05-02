@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import crud, schemas, security
 from ..database import get_db
 from ..config import settings
+from ..models import User
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -41,5 +42,5 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends(), db: AsyncSessi
     return {"access_token": access_token, "token_type": "bearer"}
 
 @router.get("/me", response_model=schemas.UserResponse)
-async def read_users_me(current_user: schemas.UserResponse = Depends(security.get_current_user)):
+async def read_users_me(current_user: User = Depends(security.get_current_user)):
     return current_user

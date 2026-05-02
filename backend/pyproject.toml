@@ -18,8 +18,7 @@ dependencies = [
     "uvicorn>=0.46.0",
 ]
 
-[tool.uv]
-extras = ["standard"]
 
-[project.scripts]
-start = "uvicorn src.main:app --reload --host 0.0.0.0 --port 8000"
+
+[tool.setuptools.scripts]
+start = "src.main:main"

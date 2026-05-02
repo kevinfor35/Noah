@@ -1,22 +1,14 @@
-<script setup lang="ts">
-import { onMounted } from 'vue'
-import { useUserStore } from '@/stores/user'
-
-const userStore = useUserStore()
-
-onMounted(() => {
-  userStore.initUser()
-})
-</script>
-
 <template>
-  <div class="app">
-    <router-view />
+  <div class="min-h-screen bg-gray-50">
+    <Header />
+    <main class="container mx-auto px-4 py-8">
+      <router-view />
+    </main>
+    <Footer />
   </div>
 </template>
 
-<style scoped>
-.app {
-  min-height: 100vh;
-}
-</style>
+<script setup>
+import Header from './components/Header.vue'
+import Footer from './components/Footer.vue'
+</script>

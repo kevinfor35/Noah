@@ -2,6 +2,7 @@
 .env
 .env.local
 .env.*.local
+.env.production
 
 # Python
 __pycache__/
@@ -11,6 +12,9 @@ __pycache__/
 .Python
 .python-version
 uv.lock
+.pytest_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv/
@@ -26,6 +30,8 @@ build/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.pnpm-store/
+.npmrc
 
 # Editor directories and files
 .vscode/
@@ -33,6 +39,7 @@ yarn-error.log*
 *.swp
 *.swo
 *~
+*.bak
 
 # OS files
 Thumbs.db
@@ -41,8 +48,22 @@ Thumbs.db
 
 # Logs
 *.log
+logs/
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
+
+# Secrets and sensitive files
+*.secret
+*.key
+*.pem
+secrets/
+
+# Build artifacts
+*.egg-info/
+*.whl
+
+# Docker
+docker-compose.override.yml

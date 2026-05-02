@@ -7,16 +7,18 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from src.database import Base, async_session_maker
 from src.config import settings
 from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy import text
+from sqlalchemy import select
 from src.security import get_password_hash
 from src.models import User
 
 async def create_admin_user():
     async with async_session_maker() as session:
-        existing_admin = await session.execute(
-            text("SELECT id FROM users WHERE email = 'admin@example.com'")
+        result = await session.execute(
+            select(User).where(User.email == 'admin@example.com')
         )
-        if existing_admin.scalar_one_or_none():
+        existing_admin = result.scalar_one_or_none()
+        
+        if existing_admin:
             print("Admin user already exists")
             return
         

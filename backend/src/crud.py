@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -8,7 +7,6 @@ from .models import User, Category, Tag, Post, PostTag, Comment, Like
 from .schemas import UserCreate, CategoryBase, TagBase, PostCreate, PostUpdate, CommentBase
 
 async def create_user(db: AsyncSession, user: UserCreate) -> User:
-    hashed_password = user.password
     from .security import get_password_hash
     hashed_password = get_password_hash(user.password)
     db_user = User(
@@ -32,6 +30,15 @@ async def get_user_by_username(db: AsyncSession, username: str) -> Optional[User
 async def get_users(db: AsyncSession, skip: int = 0, limit: int = 100) -> List[User]:
     result = await db.execute(select(User).offset(skip).limit(limit))
     return result.scalars().all()
+
+async def promote_user(db: AsyncSession, user_id: int) -> Optional[User]:
+    result = await db.execute(select(User).where(User.id == user_id))
+    db_user = result.scalars().first()
+    if db_user:
+        db_user.is_admin = True
+        await db.commit()
+        await db.refresh(db_user)
+    return db_user
 
 async def create_category(db: AsyncSession, category: CategoryBase) -> Category:
     db_category = Category(name=category.name, description=category.description)
@@ -100,7 +107,7 @@ async def delete_tag(db: AsyncSession, tag_id: int) -> bool:
         return True
     return False
 
-async def create_post(db: AsyncSession, post: PostCreate, author_id: int) -> Post:
+async def create_post(db: AsyncSession, post: PostCreate, author_id: int) -> dict:
     db_post = Post(
         title=post.title,
         content=post.content,
@@ -109,31 +116,40 @@ async def create_post(db: AsyncSession, post: PostCreate, author_id: int) -> Pos
         category_id=post.category_id
     )
     db.add(db_post)
+    await db.flush()
+
+    if post.tag_ids:
+        for tag_id in post.tag_ids:
+            db_post_tag = PostTag(post_id=db_post.id, tag_id=tag_id)
+            db.add(db_post_tag)
+
     await db.commit()
     await db.refresh(db_post)
-    
-    for tag_id in post.tag_ids:
-        db_post_tag = PostTag(post_id=db_post.id, tag_id=tag_id)
-        db.add(db_post_tag)
-    await db.commit()
-    
-    return db_post
 
-async def get_posts(db: AsyncSession, skip: int = 0, limit: int = 10, category_id: Optional[int] = None, tag_id: Optional[int] = None, search: Optional[str] = None) -> List[Post]:
-    query = select(Post).filter(Post.is_published == True)
-    
+    result = await db.execute(
+        select(Post)
+        .options()
+        .where(Post.id == db_post.id)
+    )
+    return result.scalars().first()
+
+async def get_posts(db: AsyncSession, skip: int = 0, limit: int = 10, category_id: Optional[int] = None, tag_id: Optional[int] = None, search: Optional[str] = None, include_unpublished: bool = False) -> List[Post]:
+    query = select(Post)
+    if not include_unpublished:
+        query = query.filter(Post.is_published == True)
+
     if category_id:
         query = query.filter(Post.category_id == category_id)
-    
+
     if tag_id:
         query = query.join(PostTag).filter(PostTag.tag_id == tag_id)
-    
+
     if search:
         query = query.filter(or_(
             Post.title.ilike(f"%{search}%"),
             Post.content.ilike(f"%{search}%")
         ))
-    
+
     query = query.order_by(desc(Post.created_at)).offset(skip).limit(limit)
     result = await db.execute(query)
     return result.scalars().all()
@@ -156,13 +172,13 @@ async def update_post(db: AsyncSession, post_id: int, post: PostUpdate) -> Optio
             db_post.category_id = post.category_id
         if post.is_published is not None:
             db_post.is_published = post.is_published
-        
+
         await db.execute(PostTag.__table__.delete().where(PostTag.post_id == post_id))
-        
+
         for tag_id in post.tag_ids or []:
             db_post_tag = PostTag(post_id=post_id, tag_id=tag_id)
             db.add(db_post_tag)
-        
+
         await db.commit()
         await db.refresh(db_post)
     return db_post
@@ -191,8 +207,11 @@ async def create_comment(db: AsyncSession, comment: CommentBase, post_id: int, u
     return db_comment
 
 async def get_comments(db: AsyncSession, post_id: int) -> List[Comment]:
+    from sqlalchemy.orm import selectinload
     result = await db.execute(
-        select(Comment).where(Comment.post_id == post_id, Comment.is_deleted == False)
+        select(Comment)
+        .options(selectinload(Comment.user))
+        .where(Comment.post_id == post_id, Comment.is_deleted != True)
         .order_by(Comment.created_at)
     )
     return result.scalars().all()
@@ -215,12 +234,12 @@ async def delete_comment(db: AsyncSession, comment_id: int) -> bool:
 async def like_post(db: AsyncSession, post_id: int, user_id: int) -> bool:
     result = await db.execute(select(Like).where(Like.post_id == post_id, Like.user_id == user_id))
     existing_like = result.scalars().first()
-    
+
     if existing_like:
         await db.delete(existing_like)
         await db.commit()
         return False
-    
+
     db_like = Like(post_id=post_id, user_id=user_id)
     db.add(db_like)
     await db.commit()
@@ -235,36 +254,47 @@ async def get_like_count(db: AsyncSession, post_id: int) -> int:
     return result.scalar() or 0
 
 async def get_comment_count(db: AsyncSession, post_id: int) -> int:
-    result = await db.execute(select(func.count(Comment.id)).where(Comment.post_id == post_id, Comment.is_deleted == False))
+    result = await db.execute(select(func.count(Comment.id)).where(Comment.post_id == post_id, Comment.is_deleted != True))
     return result.scalar() or 0
 
 async def get_stats(db: AsyncSession):
     total_posts = await db.execute(select(func.count(Post.id)))
     total_posts = total_posts.scalar() or 0
-    
+
     total_users = await db.execute(select(func.count(User.id)))
     total_users = total_users.scalar() or 0
-    
-    total_comments = await db.execute(select(func.count(Comment.id)).where(Comment.is_deleted == False))
+
+    total_comments = await db.execute(select(func.count(Comment.id)).where(Comment.is_deleted != True))
     total_comments = total_comments.scalar() or 0
-    
+
     total_likes = await db.execute(select(func.count(Like.id)))
     total_likes = total_likes.scalar() or 0
-    
-    posts_per_category = await db.execute(
-        select(Category.name, func.count(Post.id).label("count"))
+
+    category_result = await db.execute(
+        select(Category.name.label("category_name"), func.count(Post.id).label("count"))
         .outerjoin(Post)
-        .group_by(Category.id)
+        .group_by(Category.id, Category.name)
     )
-    posts_per_category = [{"name": row.name, "count": row.count or 0} for row in posts_per_category.all()]
+    posts_per_category = []
+    for row in category_result.all():
+        if row.count > 0:
+            posts_per_category.append({"category_name": row.category_name, "count": row.count})
     
+    # 统计没有分类的文章
+    uncategorized_result = await db.execute(
+        select(func.count(Post.id)).where(Post.category_id == None)
+    )
+    uncategorized_count = uncategorized_result.scalar() or 0
+    if uncategorized_count > 0:
+        posts_per_category.append({"category_name": "未分类", "count": uncategorized_count})
+
     recent_posts = await db.execute(
         select(Post.id, Post.title, Post.created_at)
         .order_by(desc(Post.created_at))
         .limit(5)
     )
     recent_posts = [{"id": row.id, "title": row.title, "created_at": row.created_at} for row in recent_posts.all()]
-    
+
     return {
         "total_posts": total_posts,
         "total_users": total_users,

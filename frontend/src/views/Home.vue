@@ -1,246 +1,155 @@
-<script setup lang="ts">import { ref, onMounted, computed } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { postApi, tagApi } from '@/api';
-import type { Post, Tag } from '@/types';
-import Navbar from '@/components/Navbar.vue';
-const route = useRoute();
-const router = useRouter();
-const posts = ref<Post[]>([]);
-const tags = ref<Tag[]>([]);
-const loading = ref(true);
-const searchQuery = computed(() => route.query.search as string || '');
-const selectedCategory = computed(() => route.query.category_id ? parseInt(route.query.category_id as string) : undefined);
-const selectedTag = computed(() => route.query.tag_id ? parseInt(route.query.tag_id as string) : undefined);
-const fetchPosts = async () => {
- loading.value = true;
- try {
- const params: Record<string, number | string> = {};
- if (selectedCategory.value !== undefined) {
- params.category_id = selectedCategory.value;
- }
- if (selectedTag.value !== undefined) {
- params.tag_id = selectedTag.value;
- }
- if (searchQuery.value) {
- params.search = searchQuery.value;
- }
- const response = await postApi.getPosts(params);
- posts.value = response.data;
- }
- catch (error) {
- console.error('Failed to fetch posts:', error);
- posts.value = [];
- }
- loading.value = false;
-};
-const fetchTags = async () => {
- try {
- const response = await tagApi.getTags();
- tags.value = response.data;
- }
- catch {
- tags.value = [];
- }
-};
-const handleTagClick = (tagId: number) => {
- router.push({ path: '/', query: { tag_id: tagId } });
-};
-const clearFilters = () => {
- router.push('/');
-};
-onMounted(() => {
- fetchPosts();
- fetchTags();
-});
-</script>
-
 <template>
-  <div class="home">
-    <Navbar />
-    
-    <div class="container main-content">
-      <aside class="sidebar">
-        <div class="card">
-          <h3>Tags</h3>
-          <div class="tags">
-            <button
-              v-for="tag in tags"
-              :key="tag.id"
-              :class="{ active: selectedTag === tag.id }"
-              @click="handleTagClick(tag.id)"
+  <div class="max-w-4xl mx-auto">
+    <div class="mb-8">
+      <h1 class="text-4xl font-bold text-gray-800 mb-2">最新文章</h1>
+      <p class="text-gray-500">阅读最新发布的博客文章</p>
+    </div>
+
+    <div v-if="loading" class="flex justify-center items-center py-12">
+      <Loader2 class="w-8 h-8 text-blue-600 animate-spin" />
+    </div>
+
+    <div v-else-if="posts.length === 0" class="text-center py-12">
+      <FileText class="w-16 h-16 text-gray-300 mx-auto mb-4" />
+      <p class="text-gray-500">暂无文章</p>
+    </div>
+
+    <div v-else class="space-y-6">
+      <article 
+        v-for="post in posts" 
+        :key="post.id"
+        class="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition"
+      >
+        <div class="p-6">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-sm text-gray-500">{{ formatDate(post.created_at) }}</span>
+            <span 
+              v-if="post.category"
+              class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-sm"
             >
-              {{ tag.name }}
-            </button>
-          </div>
-        </div>
-        
-        <div v-if="selectedCategory || selectedTag || searchQuery" class="card">
-          <button class="clear-filters" @click="clearFilters">
-            Clear Filters
-          </button>
-        </div>
-      </aside>
-      
-      <main class="posts-container">
-        <div v-if="loading" class="loading"></div>
-        
-        <div v-else-if="posts.length === 0" class="no-posts">
-          <p>No posts found.</p>
-        </div>
-        
-        <div v-else class="posts-grid">
-          <article
-            v-for="post in posts"
-            :key="post.id"
-            class="post-card"
-            @click="router.push(`/post/${post.id}`)"
-          >
-            <h2>{{ post.title }}</h2>
-            <p class="excerpt">{{ post.excerpt || post.content.substring(0, 150) }}...</p>
-            <div class="post-meta">
-              <span class="author">By {{ post.author.username }}</span>
-              <span class="date">{{ new Date(post.created_at).toLocaleDateString() }}</span>
-            </div>
-            <div class="post-stats">
-              <span>👁️ {{ post.view_count }}</span>
-              <span>❤️ {{ post.like_count }}</span>
-              <span>💬 {{ post.comment_count }}</span>
-            </div>
-            <div v-if="post.category" class="category">
               {{ post.category.name }}
+            </span>
+          </div>
+          
+          <h2 class="text-xl font-bold text-gray-800 mb-2">
+            <router-link :to="`/post/${post.id}`" class="hover:text-blue-600 transition">
+              {{ post.title }}
+            </router-link>
+          </h2>
+          
+          <p class="text-gray-600 mb-4 line-clamp-2">{{ post.excerpt || post.content }}</p>
+          
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+              <span class="flex items-center text-gray-500">
+                <User class="w-4 h-4 mr-1" />
+                {{ post.author.username }}
+              </span>
+              <span class="flex items-center text-gray-500">
+                <Eye class="w-4 h-4 mr-1" />
+                {{ post.view_count }}
+              </span>
+              <span class="flex items-center text-gray-500">
+                <Heart class="w-4 h-4 mr-1" />
+                {{ post.like_count }}
+              </span>
+              <span class="flex items-center text-gray-500">
+                <MessageCircle class="w-4 h-4 mr-1" />
+                {{ post.comment_count }}
+              </span>
             </div>
-            <div class="post-tags">
-              <span v-for="tag in post.tags" :key="tag.id" class="tag">
+            
+            <div class="flex items-center space-x-2">
+              <span 
+                v-for="tag in post.tags" 
+                :key="tag.id"
+                class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm"
+              >
                 {{ tag.name }}
               </span>
             </div>
-          </article>
+          </div>
         </div>
-      </main>
+      </article>
+    </div>
+
+    <div v-if="hasMore" class="flex justify-center mt-8">
+      <button 
+        @click="loadMore"
+        class="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center"
+      >
+        <RefreshCw class="w-4 h-4 mr-2" />
+        加载更多
+      </button>
     </div>
   </div>
 </template>
 
-<style scoped>
-.home {
-  min-height: 100vh;
+<script setup>
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import { postsAPI } from '../api'
+import { Loader2, FileText, User, Eye, Heart, MessageCircle, RefreshCw } from 'lucide-vue-next'
+
+const route = useRoute()
+const posts = ref([])
+const loading = ref(false)
+const skip = ref(0)
+const limit = 10
+const hasMore = ref(true)
+
+const fetchPosts = async () => {
+  loading.value = true
+  try {
+    const params = {
+      skip: skip.value,
+      limit: limit
+    }
+    
+    if (route.query.category_id) {
+      params.category_id = parseInt(route.query.category_id)
+    }
+    if (route.query.tag_id) {
+      params.tag_id = parseInt(route.query.tag_id)
+    }
+    if (route.query.search) {
+      params.search = route.query.search
+    }
+    
+    const response = await postsAPI.getPosts(params)
+    if (response.data.length < limit) {
+      hasMore.value = false
+    }
+    posts.value = [...posts.value, ...response.data]
+  } catch (error) {
+    console.error('Failed to fetch posts:', error)
+  } finally {
+    loading.value = false
+  }
 }
 
-.main-content {
-  display: flex;
-  gap: 20px;
-  padding: 20px 0;
+const loadMore = () => {
+  skip.value += limit
+  fetchPosts()
 }
 
-.sidebar {
-  width: 250px;
-  flex-shrink: 0;
+const formatDate = (dateString) => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('zh-CN', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  })
 }
 
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
+onMounted(() => {
+  fetchPosts()
+})
 
-.tags button {
-  padding: 4px 12px;
-  background: #f0f0f0;
-  border: none;
-  border-radius: 20px;
-  cursor: pointer;
-  font-size: 12px;
-}
-
-.tags button.active {
-  background: #3b82f6;
-  color: white;
-}
-
-.clear-filters {
-  width: 100%;
-  padding: 10px;
-  background: #f0f0f0;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-}
-
-.posts-container {
-  flex: 1;
-}
-
-.no-posts {
-  text-align: center;
-  padding: 40px;
-}
-
-.posts-grid {
-  display: grid;
-  gap: 20px;
-}
-
-.post-card {
-  background: white;
-  border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  cursor: pointer;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.post-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-.post-card h2 {
-  margin-bottom: 10px;
-  color: #333;
-}
-
-.excerpt {
-  color: #666;
-  margin-bottom: 10px;
-}
-
-.post-meta {
-  display: flex;
-  gap: 15px;
-  font-size: 14px;
-  color: #888;
-  margin-bottom: 10px;
-}
-
-.post-stats {
-  display: flex;
-  gap: 15px;
-  font-size: 14px;
-  color: #888;
-  margin-bottom: 10px;
-}
-
-.category {
-  display: inline-block;
-  padding: 4px 12px;
-  background: #e0f2fe;
-  color: #0369a1;
-  border-radius: 4px;
-  font-size: 12px;
-  margin-bottom: 10px;
-}
-
-.post-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.tag {
-  padding: 4px 10px;
-  background: #f3f4f6;
-  color: #374151;
-  border-radius: 4px;
-  font-size: 12px;
-}
-</style>
+watch(() => route.query, () => {
+  posts.value = []
+  skip.value = 0
+  hasMore.value = true
+  fetchPosts()
+}, { deep: true })
+</script>
